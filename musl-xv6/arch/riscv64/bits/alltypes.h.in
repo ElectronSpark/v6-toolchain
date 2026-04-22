@@ -1,0 +1,32 @@
+/*
+ * bits/alltypes.h.in — xv6 RISC-V type definitions for musl
+ *
+ * This is the arch-specific part.  musl's build system merges this with
+ * include/alltypes.h.in (the generic part) via sed to produce the final
+ * bits/alltypes.h.
+ *
+ * Keep this file minimal — only override types that truly differ from the
+ * generic defaults.  Most types (pthread_*, FILE, sigset_t, etc.) are
+ * defined in include/alltypes.h.in and must NOT be duplicated here.
+ *
+ * This matches upstream musl 1.2.5 arch/riscv64/bits/alltypes.h.in.
+ */
+
+#define _Addr long
+#define _Int64 long
+#define _Reg long
+
+#define __BYTE_ORDER 1234
+#define __LONG_MAX 0x7fffffffffffffffL
+
+#ifndef __cplusplus
+TYPEDEF int wchar_t;
+#endif
+
+TYPEDEF int blksize_t;
+TYPEDEF unsigned int nlink_t;
+
+TYPEDEF float float_t;
+TYPEDEF double double_t;
+
+TYPEDEF struct { long long __ll; long double __ld; } max_align_t;

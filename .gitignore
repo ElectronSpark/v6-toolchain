@@ -1,0 +1,2 @@
+# scripts run from build dirs; ignore stamps when working in-source
+.extracted-*
