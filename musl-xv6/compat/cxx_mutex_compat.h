@@ -13,11 +13,20 @@
 #ifndef XV6_CXX_MUTEX_COMPAT_H
 #define XV6_CXX_MUTEX_COMPAT_H
 
+#include <chrono>
+#include <errno.h>
 #include <pthread.h>
+#include <stdint.h>
+#include <time.h>
 
 #ifndef _GLIBCXX_HAS_GTHREADS   /* only provide stubs when missing */
 
 namespace std {
+
+enum class cv_status {
+    no_timeout,
+    timeout
+};
 
 class mutex {
 public:
@@ -44,9 +53,45 @@ public:
     void notify_all() noexcept { pthread_cond_broadcast(&_c); }
     template <class Lock>
     void wait(Lock& lk) {
-        pthread_cond_wait(&_c, lk.mutex()->native_handle());
+        pthread_cond_wait(&_c, lock_native_handle(lk));
+    }
+    template <class Lock, class Predicate>
+    void wait(Lock& lk, Predicate pred) {
+        while (!pred())
+            wait(lk);
+    }
+    template <class Lock, class Rep, class Period>
+    cv_status wait_for(Lock& lk, const chrono::duration<Rep, Period>& duration) {
+        if (duration == chrono::duration<Rep, Period>::max()) {
+            wait(lk);
+            return cv_status::no_timeout;
+        }
+
+        struct timespec deadline;
+        clock_gettime(CLOCK_REALTIME, &deadline);
+
+        auto ns = chrono::duration_cast<chrono::nanoseconds>(duration).count();
+        if (ns < 0)
+            ns = 0;
+        deadline.tv_sec += ns / 1000000000LL;
+        deadline.tv_nsec += ns % 1000000000LL;
+        if (deadline.tv_nsec >= 1000000000L) {
+            deadline.tv_sec++;
+            deadline.tv_nsec -= 1000000000L;
+        }
+
+        int rc = pthread_cond_timedwait(&_c, lock_native_handle(lk), &deadline);
+        return rc == ETIMEDOUT ? cv_status::timeout : cv_status::no_timeout;
     }
 private:
+    template <class Lock>
+    static auto lock_native_handle(Lock& lk) -> decltype(lk.mutex()->native_handle()) {
+        return lk.mutex()->native_handle();
+    }
+    template <class Lock>
+    static auto lock_native_handle(Lock& lk) -> decltype(lk.native_handle()) {
+        return lk.native_handle();
+    }
     pthread_cond_t _c;
 };
 
