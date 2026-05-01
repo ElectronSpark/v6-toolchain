@@ -326,7 +326,7 @@ build_phase1() {
             --disable-nls \
             --disable-shared \
             --disable-multilib \
-            --disable-threads \
+            --enable-threads=posix \
             --disable-libssp \
             --disable-libquadmath \
             --disable-libgomp \
@@ -386,7 +386,7 @@ build_phase1() {
             --disable-shared \
             --enable-static \
             --disable-multilib \
-            --disable-threads \
+            --enable-threads=posix \
             --disable-libssp \
             --disable-libquadmath \
             --disable-libgomp \
