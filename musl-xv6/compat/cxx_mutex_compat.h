@@ -97,8 +97,6 @@ private:
 
 }  // namespace std
 
-#endif /* !_GLIBCXX_HAS_GTHREADS */
-
 /*
  * std::scoped_lock (C++17) — libstdc++ without gthreads may not provide it.
  * WebKitGTK's bmalloc requires it.  Only the single-mutex specialization
@@ -136,5 +134,7 @@ scoped_lock(MutexTypes&...) -> scoped_lock<MutexTypes...>;
 
 } // namespace std
 #endif /* C++17 */
+
+#endif /* !_GLIBCXX_HAS_GTHREADS */
 
 #endif /* XV6_CXX_MUTEX_COMPAT_H */
