@@ -262,8 +262,11 @@
 #define SYS_lremovexattr                    896
 #define SYS_lsetxattr                       895
 #define SYS_memfd_create                    894
+#define __NR_memfd_create                   SYS_memfd_create
 #define SYS_mlock2                          893
+#define __NR_mlock2                         SYS_mlock2
 #define SYS_mlockall                        892
+#define __NR_mlockall                       SYS_mlockall
 #define SYS_mq_getsetattr                   891
 #define SYS_mq_notify                       890
 #define SYS_mq_open                         889
@@ -271,7 +274,9 @@
 #define SYS_mq_timedsend_time64             887
 #define SYS_mq_unlink                       886
 #define SYS_munlock                         885
+#define __NR_munlock                        SYS_munlock
 #define SYS_munlockall                      884
+#define __NR_munlockall                     SYS_munlockall
 #define SYS_name_to_handle_at               883
 #define SYS_open_by_handle_at               882
 #define SYS_process_vm_readv                880
