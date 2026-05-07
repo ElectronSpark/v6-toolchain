@@ -55,9 +55,9 @@ __clone:
     movq %rax, 48(%rsp)      /* clone_args.ctid = ctid */
     movq %r8,  56(%rsp)      /* clone_args.ptid = ptid */
 
-    /* Syscall: rax = SYS_clone (1), rdi = &clone_args */
+    /* Syscall: rax = SYS_clone (1201), rdi = &clone_args */
     movq %rsp, %rdi
-    movq $1, %rax            /* SYS_clone = 1 */
+    movq $1201, %rax         /* SYS_clone */
     syscall
 
     /* Check return value */
@@ -84,6 +84,6 @@ __clone:
 
     /* func returned — call exit_group */
     movq %rax, %rdi
-    movq $4, %rax             /* SYS_exit_group = 4 */
+    movq $1204, %rax          /* SYS_exit_group */
     syscall
     hlt

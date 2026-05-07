@@ -106,4 +106,4 @@ static __inline long __syscall6(long n, long a, long b, long c, long d, long e, 
 /* Tell musl that clone() passes args via struct pointer, not registers.
  * xv6 clone() takes a single pointer to struct clone_args in a0.
  * We override SYS_clone handling in __clone() wrapper instead. */
-#define SYS_clone  1
+#define SYS_clone  1201

@@ -63,7 +63,7 @@ __clone:
 
     /* syscall: clone(clone_args) */
     mv   a0, sp            /* a0 = &clone_args */
-    li   a7, 1             /* SYS_clone = 1 */
+    li   a7, 1201          /* SYS_clone */
     ecall
 
     /* Parent returns here with child PID in a0 (or negative error) */

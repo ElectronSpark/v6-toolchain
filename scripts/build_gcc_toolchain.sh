@@ -260,6 +260,18 @@ prepare_musl_source() {
     apply_xv6_overlay "${TARGET_ARCH}" "${dest}" "${MUSL_XV6_DIR}/arch"
 }
 
+musl_overlay_newer_than() {
+    local stamp="$1"
+
+    if [[ ! -f "${stamp}" ]]; then
+        return 0
+    fi
+
+    [[ -n "$(find "${MUSL_XV6_DIR}" -type f \
+        \( -name '*.c' -o -name '*.h' -o -name '*.in' -o -name '*.s' -o -name '*.sh' \) \
+        -newer "${stamp}" -print -quit)" ]]
+}
+
 # =============================================================================
 # PHASE 1: Static bootstrap toolchain
 # =============================================================================
@@ -295,7 +307,8 @@ build_phase1() {
 
     # ── Step 1b: Install musl headers ────────────────────────────────────
     log_step "Phase 1 — Step 2/5: Installing musl headers..."
-    if [[ -f "${SYSROOT}/include/stdio.h" ]]; then
+    local MUSL_P1_HEADERS_STAMP="${SYSROOT}/.xv6_musl_headers_overlay_stamp"
+    if [[ -f "${SYSROOT}/include/stdio.h" ]] && ! musl_overlay_newer_than "${MUSL_P1_HEADERS_STAMP}"; then
         log_info "musl headers already installed, skipping."
     else
         local MUSL_P1_SRC="${B}/musl-headers"
@@ -308,6 +321,7 @@ build_phase1() {
         mkdir -p obj/include/bits
         make ARCH="${TARGET_ARCH}" prefix="${SYSROOT}" install-headers DESTDIR=""
         popd > /dev/null
+        touch "${MUSL_P1_HEADERS_STAMP}"
     fi
 
     # ── Step 1c: Build GCC Stage 1 (C only, no libc) ────────────────────
@@ -343,7 +357,8 @@ build_phase1() {
 
     # ── Step 1d: Build musl (static only) ────────────────────────────────
     log_step "Phase 1 — Step 4/5: Building musl ${MUSL_VERSION} (static)..."
-    if [[ -f "${SYSROOT}/lib/libc.a" ]]; then
+    local MUSL_P1_STATIC_STAMP="${SYSROOT}/lib/.xv6_musl_static_overlay_stamp"
+    if [[ -f "${SYSROOT}/lib/libc.a" ]] && ! musl_overlay_newer_than "${MUSL_P1_STATIC_STAMP}"; then
         log_info "musl static library already installed, skipping."
     else
         local MUSL_P1_BUILD="${B}/musl-static"
@@ -364,6 +379,7 @@ build_phase1() {
         make_quiet -j"${JOBS}"
         make_quiet install
         popd > /dev/null
+        touch "${MUSL_P1_STATIC_STAMP}"
     fi
 
     # ── Step 1e: Rebuild GCC (full, with musl libc) ──────────────────────
@@ -453,22 +469,22 @@ build_phase2() {
     # ── Step 2b: Build GCC Stage 1 (bootstrap, for compiling musl) ──────
     log_step "Phase 2 — Step 2/4: Building GCC ${GCC_VERSION} Stage 1..."
     local GCC_S1_DONE="${B}/.gcc_stage1_done"
-    if [[ -f "${GCC_S1_DONE}" ]]; then
-        log_info "GCC Stage 1 already built, skipping."
-    else
-        # Install musl headers first (needed before GCC can build libgcc
-        # with knowledge of the target C library headers)
+    local MUSL_P2_HEADERS_STAMP="${SYSROOT}/.xv6_musl_headers_overlay_stamp"
+    if [[ ! -f "${SYSROOT}/include/stdio.h" ]] || musl_overlay_newer_than "${MUSL_P2_HEADERS_STAMP}"; then
         log_info "Installing musl headers into sysroot..."
         local MUSL_P2_HDR="${B}/musl-headers"
         prepare_musl_source "${MUSL_P2_HDR}"
 
         pushd "${MUSL_P2_HDR}" > /dev/null
-        # Install headers only — bypass configure, use make directly
-        # (same approach as Phase 1).
         mkdir -p obj/include/bits
         make ARCH="${TARGET_ARCH}" prefix="${SYSROOT}" install-headers DESTDIR=""
         popd > /dev/null
+        touch "${MUSL_P2_HEADERS_STAMP}"
+    fi
 
+    if [[ -f "${GCC_S1_DONE}" ]]; then
+        log_info "GCC Stage 1 already built, skipping."
+    else
         # Build GCC stage 1
         mkdir -p "${B}/gcc-stage1"
         pushd "${B}/gcc-stage1" > /dev/null
@@ -500,7 +516,9 @@ build_phase2() {
 
     # ── Step 2c: Build musl (static + shared) ────────────────────────────
     log_step "Phase 2 — Step 3/4: Building musl ${MUSL_VERSION} (static + shared)..."
-    if [[ -f "${SYSROOT}/lib/libc.so" && -f "${SYSROOT}/lib/libc.a" ]]; then
+    local MUSL_P2_SHARED_STAMP="${SYSROOT}/lib/.xv6_musl_shared_overlay_stamp"
+    if [[ -f "${SYSROOT}/lib/libc.so" && -f "${SYSROOT}/lib/libc.a" ]] && \
+       ! musl_overlay_newer_than "${MUSL_P2_SHARED_STAMP}"; then
         log_info "musl already installed with shared support, skipping."
     else
         local MUSL_P2_BUILD="${B}/musl-shared"
@@ -529,6 +547,7 @@ build_phase2() {
             log_info "Fixed ${MUSL_DYNAMIC_LINKER} symlink → libc.so (relative)"
         fi
         popd > /dev/null
+        touch "${MUSL_P2_SHARED_STAMP}"
     fi
 
     # ── Step 2d: Build GCC (full, with shared support) ───────────────────
@@ -641,6 +660,17 @@ EOF
         log_info "Static compilation: FAILED (this is expected in Stage 1 without full libc)"
     fi
 
+    local ABI_PROBE="${MUSL_XV6_DIR}/programs/libc_abi_probe.c"
+    if [[ -f "${ABI_PROBE}" ]]; then
+        if "${P}/bin/${TRIPLET}-gcc" -static -pthread \
+                -o "${TMPDIR}/libc_abi_probe_static" "${ABI_PROBE}" 2>/dev/null; then
+            log_info "libc ABI probe static compilation: OK"
+        else
+            log_error "libc ABI probe static compilation failed"
+            return 1
+        fi
+    fi
+
     # C++ test
     cat > "${TMPDIR}/hello_cpp.cpp" << 'CPPEOF'
 #include <cstdio>
@@ -660,6 +690,15 @@ CPPEOF
                 log_info "  Confirmed dynamic linker: $(${P}/bin/${TRIPLET}-readelf -p .interp "${TMPDIR}/hello_dynamic" 2>/dev/null | grep ld-musl || echo 'present')"
         else
             log_info "Dynamic compilation: FAILED"
+        fi
+        if [[ -f "${ABI_PROBE}" ]]; then
+            if "${P}/bin/${TRIPLET}-gcc" -pthread \
+                    -o "${TMPDIR}/libc_abi_probe_dynamic" "${ABI_PROBE}" 2>/dev/null; then
+                log_info "libc ABI probe dynamic compilation: OK"
+            else
+                log_error "libc ABI probe dynamic compilation failed"
+                return 1
+            fi
         fi
     fi
 
