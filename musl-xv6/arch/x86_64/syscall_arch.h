@@ -91,5 +91,3 @@ static __inline long __syscall6(long n, long a1, long a2, long a3, long a4, long
 		: "rcx", "r11", "memory");
 	return ret;
 }
-
-#define SYS_clone  1201

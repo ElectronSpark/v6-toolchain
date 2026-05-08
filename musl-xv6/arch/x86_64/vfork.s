@@ -12,7 +12,7 @@
 .global vfork
 .type vfork,@function
 vfork:
-	movq $2, %rax    /* SYS_vfork */
+	movq $58, %rax    /* SYS_vfork */
 	syscall
 	/* syscall result is in RAX; __syscall_ret expects it in RDI */
 	movq %rax, %rdi
